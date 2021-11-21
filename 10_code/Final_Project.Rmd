@@ -1,0 +1,36 @@
+---
+title: "Final_Project"
+author: "Sydney Donati-Leach"
+date: "11/22/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, results = 'hide')
+```
+
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+```
+
+##  Interpreting Hospital Ratings Based on Quality Measures
+
+### Summary:
+
+
+### Introduction:
+
+  -	What factors are the strongest predictors of hospital rating?
+  -	Does the hospital rating differ by county/state? Which counties/states differ the most from other counties?
+  -	How does the hospital rating differ for the different Hospital ownership (e.g., Government, Non-profit, For-profit, etc.)?
+  -	Is there any association/multicollinearity between mortality and patient experience?
+  -	Are there any other interesting interactions taking place between any of the predictors?
+
+### EDA:
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+```
+
