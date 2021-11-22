@@ -97,7 +97,7 @@ chisq.test(table(hospital$rate, hospital$ho))
 
 # mortality
 table(hospital$mort, hospital$rate)
-prop.table(table(hospital$rate, hospital$mort), 2)
+prop.table(table(hospital$rate, hospital$mort), 4)
 chisq.test(table(hospital$rate, hospital$mort))
 
 # safety
@@ -138,9 +138,101 @@ table(hospital$rate, hospital$mort, hospital$exp)
 ################# Modeling #######################
 ##################################################
 
+# model 1: everything but ho
 model1 <- polr(rate ~ mort + safe + readmis + exp + effect + time + image, data=hospital)
 summary(model1)
+# look at coefficients
+coef(model1)
+# look at confidence intervals. If it crosses over zero it is significant
+confint(model1)
+# insignificant variables:
+  # image Same as the national average  
+  # time Not Available
+  # effect Not Available
+  # effect Same as the national average
+# exponentiate to get off the log odds scale
+exp(coef(model1))
+exp(confint(model1))
+# check for multicolinearity
+vif(model1)
 
-# couldn't include state because this had too few data
+# model 2: add ho
+model2 <- polr(rate ~ ho + mort + safe + readmis + exp + effect + time + image, data=hospital)
+summary(model2)
+# look at coefficients
+coef(model2)
+# look at confidence intervals. If it crosses over zero it is significant
+confint(model2)
+# insignificant variables:
+  # hoGovernment - Hospital District or Authority -0.8445664  1.52175474
+  # hoGovernment - Local                          -1.2614900  1.12447006
+  # hoGovernment - State                          -1.9665151  0.71870395
+  # hoProprietary                                 -1.0065078  1.33526755
+  # hoTribal                                      -5.3563049  1.75964884
+  # hoVoluntary non-profit - Church               -0.5022099  1.86617439
+  # hoVoluntary non-profit - Other                -0.6044322  1.75233354
+  # hoVoluntary non-profit - Private              -0.6774844  1.64438126
+  # hoPhysician the only one that IS significant
+# exponentiate to get off the log odds scale
+exp(coef(model2))
+exp(confint(model2))
+# determine the best model using anova
+anova(model1, model2, test = "Chisq")
+# p-value is EXTREMELY small -- ho is a useful predictor
+
+
+# model 3: add mort:exp
+model3 <- polr(rate ~ ho + mort + safe + readmis + exp + effect + time + image + mort:exp, data=hospital)
+summary(model3)
+# look at coefficients
+coef(model3)
+# look at confidence intervals. If it crosses over zero it is significant
+confint(model3)
+# insignificant variables:
+  # image Same as the national average 
+  # time Not Available
+  # effect Not Available
+  # effect Same as the national average
+# exponentiate to get off the log odds scale
+exp(coef(model3))
+exp(confint(model3))
+# determine the best model using anova
+anova(model2, model3, test = "Chisq")
+# p-value is EXTREMELY small -- mort:exp is a useful predictor
+
+
+# model 4: add safe:exp
+model4 <- polr(rate ~ ho + mort + safe + readmis + exp + effect + time + image + mort:exp + safe:exp, data=hospital)
+summary(model4)
+# look at coefficients
+coef(model4)
+# look at confidence intervals. If it crosses over zero it is significant
+confint(model4)
+# insignificant variables:
+  # image Same as the national average 
+  # time Not Available
+  # effect Not Available
+  # effect Same as the national average
+# exponentiate to get off the log odds scale
+exp(coef(model4))
+exp(confint(model4))
+# determine the best model using anova
+anova(model3, model4, test = "Chisq")
+# p-value is NOT small -- safe:exp is a useful predictor
+
+# move forward with model 3
+
+
+# couldn't include state before because the levels have too few data
 # can collapse the ratings to 1,2,3
-# do this after we determine the best model without State
+# 
+# hospital$rate_new[hospital$rate == 2]<- "1"
+# hospital$rate_new[hospital$rate == 3]<- "2"
+# hospital$rate_new[hospital$rate == 4]<- "3"
+# hospital$rate_new[hospital$rate == 5]<- "3"
+# 
+# # factor the rating with only 5 levels now
+# hospital$rate_new <- factor(hospital$rate_new)
+# 
+# # order the ratings
+# hospital$rate_new <- ordered(hospital$rate_new,levels=c("1","2","3"))
