@@ -84,7 +84,7 @@ hospital$rate <- factor(hospital$Hospital.overall.rating)
 # order the ratings
 hospital$rate <- ordered(hospital$rate,levels=c("1","2","3","4","5"))
 
-# order the predictors? NO< DON'T DO THIS!!!
+# order the predictors? NO, DON'T DO THIS!!!
 # hospital$ehr <- ordered(hospital$ehr,levels=c("Not Available","Below the national average","Same as the national average","Above the national average"))
 # hospital$mort <- ordered(hospital$mort,levels=c("Not Available","Below the national average","Same as the national average","Above the national average"))
 # hospital$safe <- ordered(hospital$safe,levels=c("Not Available","Below the national average","Same as the national average","Above the national average"))
@@ -116,11 +116,11 @@ prop.table(table(hospital$rate, hospital$ht), 2)
 table(hospital$ho, hospital$rate)
 prop.table(table(hospital$rate, hospital$ho), 2)
 
-# mortality
+# mortality IMPORTANT
 table(hospital$mort, hospital$rate)
-prop.table(table(hospital$rate, hospital$mort), 4)
+prop.table(table(hospital$rate, hospital$mort), 1)
 
-# safety
+# safety semi important
 table(hospital$safe, hospital$rate)
 prop.table(table(hospital$rate, hospital$safe), 2)
 
@@ -128,7 +128,7 @@ prop.table(table(hospital$rate, hospital$safe), 2)
 table(hospital$readmis, hospital$rate)
 prop.table(table(hospital$rate, hospital$readmis), 2)
 
-# patient experience
+# patient experience IMPORTANT
 table(hospital$exp, hospital$rate)
 prop.table(table(hospital$rate, hospital$exp), 2)
 
@@ -146,7 +146,34 @@ prop.table(table(hospital$rate, hospital$image), 2)
 
 ############### interactions #####################
 
+### with patient experience ###
+
+# mortality and patient experience
 table(hospital$rate, hospital$mort, hospital$exp)
+prop.table(table(hospital$rate, hospital$mort, hospital$exp), 2)
+
+# safety and patient experience
+table(hospital$rate, hospital$safe, hospital$exp)
+prop.table(table(hospital$rate, hospital$safe, hospital$exp), 2)
+
+# readmission and patient experience
+table(hospital$rate, hospital$readmis, hospital$exp)
+prop.table(table(hospital$rate, hospital$readmis, hospital$exp), 2)
+
+### with hospital ownership ### 
+#non are important looking; too split up
+
+# hospital ownership and mortality
+table(hospital$rate, hospital$mort, hospital$ho)
+prop.table(table(hospital$rate, hospital$mort, hospital$ho), 2)
+
+# hospital ownership and safety
+table(hospital$rate, hospital$safe, hospital$ho)
+prop.table(table(hospital$rate, hospital$safe, hospital$ho), 2)
+
+# hospital ownership and readmission
+table(hospital$rate, hospital$mort, hospital$ho)
+prop.table(table(hospital$rate, hospital$mort, hospital$ho), 2)
 
 ##################################################
 ################# Modeling #######################
@@ -154,41 +181,10 @@ table(hospital$rate, hospital$mort, hospital$exp)
 
 # model 1: everything but ho
 model1 <- polr(rate ~ mort + safe + readmis + exp + effect + time + image, data=hospital)
-summary(model1)
-# look at coefficients
-coef(model1)
-# look at confidence intervals. If it crosses over zero it is significant
-confint(model1)
-# insignificant variables:
-  # image Same as the national average  
-  # time Not Available
-  # effect Not Available
-  # effect Same as the national average
-# exponentiate to get off the log odds scale
-exp(coef(model1))
-exp(confint(model1))
 
 
 # model 2: add ho
 model2 <- polr(rate ~ ho + mort + safe + readmis + exp + effect + time + image, data=hospital)
-summary(model2)
-# look at coefficients
-coef(model2)
-# look at confidence intervals. If it crosses over zero it is significant
-confint(model2)
-# insignificant variables:
-  # hoGovernment - Hospital District or Authority -0.8445664  1.52175474
-  # hoGovernment - Local                          -1.2614900  1.12447006
-  # hoGovernment - State                          -1.9665151  0.71870395
-  # hoProprietary                                 -1.0065078  1.33526755
-  # hoTribal                                      -5.3563049  1.75964884
-  # hoVoluntary non-profit - Church               -0.5022099  1.86617439
-  # hoVoluntary non-profit - Other                -0.6044322  1.75233354
-  # hoVoluntary non-profit - Private              -0.6774844  1.64438126
-  # hoPhysician the only one that IS significant
-# exponentiate to get off the log odds scale
-exp(coef(model2))
-exp(confint(model2))
 # determine the best model using anova
 anova(model1, model2, test = "Chisq")
 # p-value is EXTREMELY small -- ho is a useful predictor
@@ -227,56 +223,38 @@ exp(coef(model3))
 exp(confint(model3))
 # determine the best model using anova
 anova(model2, model3, test = "Chisq")
-# p-value is EXTREMELY small -- mort:exp is a useful predictor
+# p-value is small -- mort:exp is a useful predictor
 
 
 # model 4: add safe:exp
 model4 <- polr(rate ~ ho + mort + safe + readmis + exp + effect + time + image + mort:exp + safe:exp, data=hospital)
+# determine the best model using anova
+anova(model3, model4, test = "Chisq")
+# p-value is small -- safe:exp is a useful predictor
+
+# model 5: add readmis:exp
+model5 <- polr(rate ~ ho + mort + safe + readmis + exp + effect + time + image + mort:exp + safe:exp + readmis:exp, data=hospital)
+# determine the best model using anova
+anova(model4, model5, test = "Chisq")
+# p-value is NOT small -- readmis:exp is NOT a useful predictor
+
+
+# move forward with interpretation of model 4
 summary(model4)
 # look at coefficients
 coef(model4)
 # look at confidence intervals. If it crosses over zero it is significant
 confint(model4)
-# insignificant variables:
-  # image Same as the national average 
-  # time Not Available
-  # effect Not Available
-  # effect Same as the national average
+# significant variables:
+# image Same as the national average 
+# time Not Available
+# effect Not Available
+# effect Same as the national average
 # exponentiate to get off the log odds scale
 exp(coef(model4))
 exp(confint(model4))
-# determine the best model using anova
-anova(model3, model4, test = "Chisq")
-# p-value is NOT small -- safe:exp is a useful predictor
 
-# move forward with model 3
-# check for multicolinearity
-vif(model3)
-#highly correlated variables:
-  # hoGovernment - Hospital District or Authority 
-  # 22.149852 
-  # hoGovernment - Local 
-  # 17.037824 
-  # hoProprietary 
-  # 42.033564 
-  # hoVoluntary non-profit - Church 
-  # 21.954144 
-  # hoVoluntary non-profit - Other 
-  # 25.588831 
-  # hoVoluntary non-profit - Private 
-  # 107.029580 
-  # mortSame as the national average 
-  # 31.063720 
-  # expNot Available 
-  # 310.304816 
-  # expSame as the national average 
-  # 18.939851 
-  # mortSame as the national average:expBelow the national average 
-  # 15.377546 
-  # mortSame as the national average:expNot Available 
-  # 234.179324 
-  # mortSame as the national average:expSame as the national average 
-  # 15.902335 
+# don't need to check for multicolinearity because they are all factor variables
 
 ################################################################################
 ########################## Prop Odds 3 Levels ##################################
