@@ -4,12 +4,12 @@ author: "Sydney Donati-Leach"
 date: "12/12/2021"
 output:
   pdf_document: default
-  latex_engine: xelatex
 geometry: margin=0.5in
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = 'C:/Users/sdona/Documents/Duke/702IDS/FinalProject/')
 ```
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
@@ -52,7 +52,7 @@ In order to understand and properly interpret why a hospital receives a certain 
 
 Every year, CMS rates every hospital registered with Medicare. The rating falls on a scale from one to five: one being the worst, five being the best. This "star rating" is derived from several different quality measures including mortality, safety, readmission, patient experience, timeliness, effectiveness of care, and efficient use of medical imaging. The measures selected come from a wide agreement among CMS, the hospital industry and public sector stakeholders.
 
-All these quality measures are evaluated in comparison to the national average and can be distinguished as above, below or the same as the national average. For example, a hospital could be ranked as below the national average for mortality, but above the national average for patient experience.  Some hospitals may not report enough information on a quality measure for CMS to appropriately assign it a ranking.  In this case, the quality measure will be listed as "Not Available". CMS has stated the weight of the other quality measures will increase in this situation.
+These quality measures are evaluated in comparison to the national average and can be distinguished as above, below or the same as the national average. For example, a hospital could be ranked as below the national average for mortality, but above the national average for patient experience.  Some hospitals may not report enough information on a quality measure for CMS to appropriately assign it a ranking.  In this case, the quality measure will be listed as "Not Available". CMS has stated the weight of the other quality measures will increase in this situation.
 
 The goal of this report will be to interpret which of these quality measures have the strongest impact on the hospital star rating. Additionally, the hospital is put into one of ten different categories regarding its ownership. Therefore, the questions of interest for this report are the following:
 
@@ -290,6 +290,8 @@ All of the same variables from the previous proportional odds model are represen
 
 The model summary shown below will be the basis for all interpretations and answers to our questions of interest.
 
+![](C:/Users/sdona/Documents/Duke/702IDS/FinalProject/model_summary.png)
+
 ```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
 ##################################################
 ################# Modeling #######################
@@ -307,7 +309,7 @@ hospital$owner <- relevel(as.factor(hospital$owner), ref = "Government - Federal
 hier_model2 <- clmm(rate_new ~ owner + mortality + safety + readmis + patient_exp + effective + timely + imaging + (1|State), data=hospital)
 
 # print(xtable(summary(hier_model2)), comment=FALSE)
-tab_model(hier_model2)
+# tab_model(hier_model2)
 # stargazer(hier_model2)
 ```
 
@@ -351,3 +353,11 @@ We were able to answer all of our questions of interest using the hierarchical p
 
 The limitations to this report came down to the data available, and the limited number of observations in certain categories.  If there were more observations, we would have been able to explore interactions, and we would not have had to switch from a 5 level response to a 3 level response.  Along those same lines, we might have been able to explore random slopes and determine if there is any variation within states. The future potential of this project would be to add in more years of data to gain more observations.
 
+\newpage
+## Appendix:
+
+#### Figure 1:
+
+&nbsp;
+
+![](C:/Users/sdona/Documents/Duke/702IDS/FinalProject/figure_1.png)
