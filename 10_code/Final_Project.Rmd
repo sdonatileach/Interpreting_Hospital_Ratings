@@ -1,8 +1,10 @@
 ---
-title: "Interpreting Hospital Ratings Based on Quality Measures"
+title: "Interpreting Hospital Ratings"
 author: "Sydney Donati-Leach"
 date: "12/12/2021"
-output: pdf_document
+output:
+  pdf_document: default
+geometry: margin=0.5in
 ---
 
 ```{r setup, include=FALSE}
@@ -35,28 +37,27 @@ library(MASS)
 library(nnet)
 library(rms)
 library(ordinal)
+require(gridExtra)
+library(magrittr)
+library(stargazer)
+library(tidyverse)
 ```
 
 ## Summary:
 
-
-
-
+In order to understand and properly interpret why a hospital receives a certain star rating from the Centers for Medicaid and Medicare Services (CMS), one must take into account different quality measures as well as the hospital ownership. Government Federally owned hospitals receive far lower ratings than Physician owned hospitals. Additionally, the state in which the hospital is located has an impact on the star rating.  The three states with the best hospitals are Ohio, Minnesota and Texas.  The three states with the worst hospitals are Florida, New York, and U.S. territories.
 
 ## Introduction:
 
-Every year, the Centers for Medicaid and Medicare Services rate every hospital registered with Medicare. The rating falls on a scale from one to five: one being the worst, five being the best. This "star rating" is derived from several different quality measures including mortality, safety, readmission, patient experience, timeliness and effectiveness of care, and efficient use of medical imaging. The measures selected come from a wide agreement among CMS, the hospital industry and public sector stakeholders.
+Every year, CMS rates every hospital registered with Medicare. The rating falls on a scale from one to five: one being the worst, five being the best. This "star rating" is derived from several different quality measures including mortality, safety, readmission, patient experience, timeliness, effectiveness of care, and efficient use of medical imaging. The measures selected come from a wide agreement among CMS, the hospital industry and public sector stakeholders.
 
-All these quality measures are evaluated in comparison to the national average and can be distinguished as above, below or the same as the national average. For example, a hospital could be ranked as below the national average for mortality, but above the national average for patient experience.  Some hospitals may not report enough information on a quality measure for CMS to appropriately assign it a ranking.  In this case, the quality measure will be listed as "Not Available".
+All these quality measures are evaluated in comparison to the national average and can be distinguished as above, below or the same as the national average. For example, a hospital could be ranked as below the national average for mortality, but above the national average for patient experience.  Some hospitals may not report enough information on a quality measure for CMS to appropriately assign it a ranking.  In this case, the quality measure will be listed as "Not Available". CMS has stated that in this case, the weight of the other quality measures will increase.
 
-The goal of this report will be to interpret which of these quality measures, and more specifically the ranking of such, have the strongest impact on the hospital star rating. Additionally, the hospital is put into one of ten different categories regarding its ownership. Therefore, the questions of interest for this report are the following:
+The goal of this report will be to interpret which of these quality measures have the strongest impact on the hospital star rating. Additionally, the hospital is put into one of ten different categories regarding its ownership. Therefore, the questions of interest for this report are the following:
 
-  -	Which factors are the strongest predictors of hospital rating?
+  - Which quality measures have the strongest impact on hospital rating?
+  -	How does the hospital rating differ for the different types of hospital ownership (e.g., Government, Non-profit, For-profit, etc.)?
   -	Does the hospital rating differ by state? Which states differ the most from other states?
-  -	How does the hospital rating differ for the different hospital ownership (e.g., Government, Non-profit, For-profit, etc.)?
-  -	Is there any interesting association between mortality and patient experience?
-  -	Are there any other interesting interactions taking place between any of the predictors?
-
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
 ### Preprocessing ###
@@ -98,7 +99,7 @@ hospital$rate <- factor(hospital$Hospital.overall.rating)
 ```
 ## Five Level Response:
   
-To answer these questions, we will start by excluding state as the hierarchy and build a regular proportional odds model. After we have a model that we are satisfied with, we will include state and move on to a hierarchical proportional odds model. Our response variable will be the hospital star rating, and in the proportional odds model it will have five levels (1 to 5).  To get a first look at the number of observations, we can see the following distribution:
+To answer these questions, we will start by excluding state as the hierarchy and build a regular proportional odds model. After we have a model we are satisfied with, we will move to a hierarchical proportional odds model by including the state in which the hospital is located. Our response variable will be the hospital star rating, and the proportional odds model will have five levels (1 to 5).  To look at the number of observations for each star rating, we can see the following distribution:
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
 ########### response variable ###############
@@ -106,27 +107,15 @@ hospital$rate <- ordered(hospital$rate,levels=c("1","2","3","4","5"))
 
 response <- table(hospital$rate)
 # sum(response)
-print(xtable(response), comment=FALSE)
+print(xtable(response, caption = 'Five Level Response'), caption.placement = 'top', include.colnames = FALSE, comment=FALSE)
 ```
 There are a total of 3567 observations where each observation represents a hospital. This is a relatively normal distribution with the most amount of hospitals falling in the middle at 3, and the least amount of hospitals on the tail ends at 1 and 5.  
 
 ### EDA:
 
-Since each of the predictors in this data are factor variables, the only EDA we can do is through tables of proportions. There were two quality measures that were interesting and can be seen below. First, if a hospital was ranked below the national average for mortality, 0% of those hospitals received a 5 star rating. Second, if a hospital was ranked below the national average for patient experience $or$ it was not available, 0% of those hospitals received a 5 star rating.  Since it appears that patient experience 
+Since each of the predictors in this data are factor variables, the only EDA we can do is through tables with the count of observations or the proportions. The first variable to look at is hospital ownership since this is a question of interest. As can be seen in the table below, there are 10 different categories of hospital ownership. The Tribal category only had 2 observations so we cannot take that into account when looking at trends. One point of interest is that Physician owned hospitals have more hospitals with a 5 star rating than any of the other ratings. We will need to keep this in mind as we move onto model building.
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
-# mortality IMPORTANT
-mortality <- prop.table(table(hospital$rate, hospital$mort), 1)
-print(xtable(mortality), comment=FALSE)
-
-# patient experience IMPORTANT
-patient <- prop.table(table(hospital$rate, hospital$exp), 1)
-print(xtable(patient), comment=FALSE)
-```
-
-
-```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
-
 #############################################
 ################# EDA #######################
 #############################################
@@ -135,125 +124,90 @@ print(xtable(patient), comment=FALSE)
 # ht, ho, emerg, ehr, mort, safe, readmis, exp, effect, time, image
 
 # hospital type not interesting
-table(hospital$ht, hospital$rate)
-prop.table(table(hospital$rate, hospital$ht), 2)
+# table(hospital$ht, hospital$rate)
+# prop.table(table(hospital$rate, hospital$ht), 2)
 
-# hospital ownership
-table(hospital$ho, hospital$rate)
-prop.table(table(hospital$rate, hospital$ho), 2)
+# hospital ownership IMPORTANT
+ownership <- table(hospital$ho, hospital$rate)
+print(xtable(ownership, caption = 'Hospital Ownership'), caption.placement = 'top', comment=FALSE)
+# prop.table(table(hospital$rate, hospital$ho), 2)
+```
 
+There were two quality measures that were the most interesting and the tables of proportions can be seen below. First, if a hospital was ranked below the national average for mortality, 0% of those hospitals received a 5 star rating. Second, if a hospital was ranked below the national average for patient experience $or$ it was not available, 0% of those hospitals received a 5 star rating.  Readmission follows close behind where 0.12% of hospitals received a 5 star rating if this quality measure was rated below the national average. The remaining quality measures are safety, timeliness, effectiveness of care, and efficient imaging. If any of these quality measures were ranked below the national average, between 0.3% to 1.9% of hospitals were able to receive a 5 star rating. Based purely on this EDA, it appears the quality measures in this order have a decreasing significance on the star rating, but we will need to explore this further in model building.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
 # mortality IMPORTANT
-table(hospital$mort, hospital$rate)
 mortality <- prop.table(table(hospital$rate, hospital$mort), 1)
-print(xtable(mortality), comment=FALSE)
+print(xtable(mortality, caption = 'Mortality'), caption.placement = 'top', comment=FALSE)
 
 # safety semi important
-table(hospital$safe, hospital$rate)
-prop.table(table(hospital$rate, hospital$safe), 2)
+# table(hospital$safe, hospital$rate)
+# prop.table(table(hospital$rate, hospital$safe), 2)
 
 # readmission
-table(hospital$readmis, hospital$rate)
-prop.table(table(hospital$rate, hospital$readmis), 2)
+# table(hospital$readmis, hospital$rate)
+# prop.table(table(hospital$rate, hospital$readmis), 2)
 
 # patient experience IMPORTANT
-table(hospital$exp, hospital$rate)
-prop.table(table(hospital$rate, hospital$exp), 1)
+patient <- prop.table(table(hospital$rate, hospital$exp), 1)
+print(xtable(patient, caption = 'Patient Experience'), caption.placement = 'top', comment=FALSE)
+
 
 # effectiveness of care
-table(hospital$effect, hospital$rate)
-prop.table(table(hospital$rate, hospital$effect), 2)
+# table(hospital$effect, hospital$rate)
+# prop.table(table(hospital$rate, hospital$effect), 2)
 
 # timeliness of care
-table(hospital$time, hospital$rate)
-prop.table(table(hospital$rate, hospital$time), 2)
+# table(hospital$time, hospital$rate)
+# prop.table(table(hospital$rate, hospital$time), 2)
 
 # Efficient use of medical imaging
-table(hospital$image, hospital$rate)
-prop.table(table(hospital$rate, hospital$image), 2)
-
-############### interactions #####################
-
-### with patient experience ###
-
-# mortality and patient experience
-table(hospital$rate, hospital$mort, hospital$exp)
-prop.table(table(hospital$rate, hospital$mort, hospital$exp), 2)
-
-# safety and patient experience
-table(hospital$rate, hospital$safe, hospital$exp)
-prop.table(table(hospital$rate, hospital$safe, hospital$exp), 2)
-
-# readmission and patient experience
-table(hospital$rate, hospital$readmis, hospital$exp)
-prop.table(table(hospital$rate, hospital$readmis, hospital$exp), 2)
-
-### with hospital ownership ### 
-#non are important looking; too split up
-
-# hospital ownership and mortality
-table(hospital$rate, hospital$mort, hospital$ho)
-prop.table(table(hospital$rate, hospital$mort, hospital$ho), 2)
-
-# hospital ownership and safety
-table(hospital$rate, hospital$safe, hospital$ho)
-prop.table(table(hospital$rate, hospital$safe, hospital$ho), 2)
-
-# hospital ownership and readmission
-table(hospital$rate, hospital$mort, hospital$ho)
-prop.table(table(hospital$rate, hospital$mort, hospital$ho), 2)
+# table(hospital$image, hospital$rate)
+# prop.table(table(hospital$rate, hospital$image), 2)
 ```
+
+One more point to note on EDA is that we will not be able to look at any interactions of variables due to the lack of observations when these quality measures are broken up.
 
 ### Model Building:
 
-Cumulative Link Model:
-$$
-logit(p(Y \leq g)) = \beta _{0_{g}} - (\beta _{1}X_{1}+ ... + \beta _{p}X_{p}) (g = 1,..., k-1)
-$$
-
+After taking into consideration everything we learned from EDA, we will start to build our proportional odds model. The first model will be simple and only contain the 2 quality measures we found the most interesting: mortality and patient experience.  Moving to the second model, we will add readmission to the model. To test the significance of readmission, we can do ANOVA Chi-squared tests. Readmission is statistically significant, so we can move onto the next model with that included and test the next quality measure, safety, for significance.  After repeating this process for all of the quality measures, we will find that all are statistically significant, so we will want to include all of them in our model. After solidifying all the necessary quality measures in the model, the last step is adding hospital ownership, and this is statistically significant as well.
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
-# model 1: everything but ho
-model1 <- clm(rate ~ mort + safe + readmis + exp + effect + time + image, data=hospital)
+# test the quality measures one at a time
+model_1 <- polr(rate ~ mort + exp, data=hospital)
+
+model_2 <- polr(rate ~ mort + exp + readmis, data=hospital)
+
+# anova(model_1, model_2, test = "Chisq")
+
+model_3 <- polr(rate ~ mort + exp + readmis + safe, data=hospital)
+
+# anova(model_2, model_3, test = "Chisq")
+
+model_4 <- polr(rate ~ mort + exp + readmis + safe + effect, data=hospital)
+
+# anova(model_3, model_4, test = "Chisq")
+
+model_5 <- polr(rate ~ mort + exp + readmis + safe + effect + time, data=hospital)
+
+# anova(model_4, model_5, test = "Chisq")
+
+model_6 <- polr(rate ~ mort + exp + readmis + safe + effect + time + image, data=hospital)
+
+# anova(model_5, model_6, test = "Chisq")
+
+# model 7: add ho
+model_7 <- polr(rate ~ ho + mort + safe + readmis + exp + effect + time + image, data=hospital)
+
+# anova(model_6, model_7, test = "Chisq")
 
 
-# model 2: add ho
-model2 <- clm(rate ~ ho + mort + safe + readmis + exp + effect + time + image, data=hospital)
-# determine the best model using anova
-# anova(model1, model2, test = "Chisq")
-# p-value is EXTREMELY small -- ho is a useful predictor
-
-
-# model 3: add mort:exp
-model3 <- clm(rate ~ ho + mort + safe + readmis + exp + effect + time + image + mort:exp, data=hospital)
-# determine the best model using anova
-# anova(model2, model3, test = "Chisq")
-# p-value is small -- mort:exp is a useful predictor
-
-
-# model 4: add readmis:exp
-model4 <- clm(rate ~ ho + mort + safe + readmis + exp + effect + time + image + mort:exp + readmis:exp, data=hospital)
-# determine the best model using anova
-# anova(model3, model4, test = "Chisq")
-# p-value is NOT small -- readmis:exp is NOT a useful predictor
-
-
-
-# # move forward with interpretation of model 4
-# summary(model4)
-# # look at coefficients
-# coef(model4)
-# # look at confidence intervals. If it crosses over zero it is significant
-# confint(model4)
-# # significant variables:
-#   
-# exp(coef(model4))
-# exp(confint(model4))
-
+# move forward with model 3 in the hierarchical model
 # don't need to check for multicolinearity because they are all factor variables
 
 ```
 
-The final proportional odds model is as follows:
+Based on what we learned from the ANOVA Chi-squared tests, our proportional odds model is as follows:
 
 $$
 log \left ( \frac{Pr[y_{i}\leq j|x^{_{i}}]}
@@ -261,16 +215,18 @@ log \left ( \frac{Pr[y_{i}\leq j|x^{_{i}}]}
  = \beta _{0j} + \beta_{1}x_{i1} + \beta_{2}x_{i2} + \beta_{3}x_{i3} + \beta_{4}x_{i4} + \beta_{5}x_{i5} + 
 $$
 $$
- \beta_{6}x_{i6} + \beta_{7}x_{i7} + \beta_{8}x_{i8} + + \beta_{9}x_{i9}, j=1,...,J-1
+ \beta_{6}x_{i6} + \beta_{7}x_{i7} + \beta_{8}x_{i8},\ \ j=1,...,J-1
 $$
 
-On the left side of the equation, we combine the first $j$ star rating to form a single category and the remaining $j$ star ratings to form a second category, and calculate the log odds ratio.  On the right side of the equation we have our predictors where $x_{i1}$ is $hospital_ownership$, $x_{i2}$ is $mortality$,  $x_{i3}$ is $safety$,  $x_{i4}$ is $readmission$,  $x_{i5}$ is $patient_experience$,  $x_{i6}$ is $effective_care$, $x_{i7}$ is $timely_care$,  $x_{i8}$ is $efficient_imaging$, and $x_{i9}$ is the interaction between $mortality$ and $safety$.
+On the left side of the equation, we combine the first $j$ star rating to form a single category and the remaining $j$ star ratings to form a second category, where $i$ represents hospitals.  On the right side of the equation we have our predictors where $x_{i1}$ is $hospital\_ownership$, $x_{i2}$ is $mortality$,  $x_{i3}$ is $safety$,  $x_{i4}$ is $readmission$,  $x_{i5}$ is $patient\_experience$,  $x_{i6}$ is $effective\_care$, $x_{i7}$ is $timely\_care$, and $x_{i8}$ is $efficient\_imaging$.
+
+We will not do any interpretation of this model as this is not our final model. We still need to explore hierarchy based on state, and this will be covered in the next section.
 
 ## Three Level Response:
 
-As stated before, the next step will be to include state as the hierarchy and build a hierarchical proportional odds model.  However, we do not have enough observations to do this with a five level response.  Therefore, we will reduce our response to only 3 levels.  In this case, an original star rating of 1 or 2 would be mapped to a rating of 1, an original star rating of 3 would be mapped to 2, and an original star rating of 4 or 5 would be mapped to a 3.  By collapsing the response to only 3 levels, there will be more observations present in each category for each state.  An additional step we will take is collapse the U.S. territories of American Samoa, Guam, Puerto Rico, Virgin Islands, and Northern Mariana Islands into a state called "Others".  These territories do not have many observations on their own, so combining them will allow us to evaluate their hospitals together.
+As stated before, the next step will be to include state as the hierarchy and build a hierarchical proportional odds model.  However, we do not have enough observations to do this with a five level response.  Therefore, we will reduce our response to only 3 levels.  In this case, an original star rating of 1 or 2 would be mapped to a rating of 1, an original star rating of 3 would be mapped to 2, and an original star rating of 4 or 5 would be mapped to a 3.  By collapsing the response to only 3 levels, there will be more observations present in each category for each state.  An additional step we will take is collapse the U.S. territories of American Samoa, Guam, Puerto Rico, Virgin Islands, and Northern Mariana Islands into a state called "Others".  These territories do not have many observations on their own, so combining them will allow us to evaluate their hospitals without being removed from the model.
 
-After doing this data cleaning, we can see the following distribution of observations:
+After doing this, we can see the following distribution of observations:
 ```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
 ################################################################################
 ########################## Prop Odds 3 Levels ##################################
@@ -304,13 +260,34 @@ hospital$rate_new <- ordered(hospital$rate_new,levels=c("1","2","3"))
 
 ########### response variable ###############
 new_response <- table(hospital$rate_new)
-print(xtable(new_response), comment=FALSE)
+# sum(new_response)
+print(xtable(new_response, caption = 'Three Level Response'), caption.placement = 'top', include.colnames = FALSE, comment=FALSE)
 
+```
+### EDA:
+When introducing a hierarchy, we must determine if there is varying intercept and/or varying slope. We can do this by looking at the count and proportions of observations for all the states.  Based on the count of observations, it is clear that we will not be able to account for varying slope as there are less than 10 observations for many states. In addition, 7 states are missing observations when split across the 3 star ratings. However, when we look at the proportions of observations, the trend is not the same across states. For example, 89% of hospitals in Alaska have a 2 star rating. This differs greatly from D.C. in which only 14% of hospitals have a 2 star rating.  Therefore, we will need to add varying intercept to our model.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
 ########### varying intercept ###############
 
-table(hospital$State, hospital$rate_new)
+# table(hospital$State, hospital$rate_new)
+states <- prop.table(table(hospital$State, hospital$rate_new), 1)
+# print(xtable(states), comment=FALSE)
 ```
 
+### Modeling Building:
+
+We will use our model from the five level response as our base model to build on.  We can begin by adding state simply as a categorical variable, but this does not allow information to be shared across states.  Therefore, we will fit a hierarchical model to explore the random effects that different states may contribute to the model. States are used as the only hierarchy in the model. Again, random slopes were not considered as the model would not have been able to converge which such few observations within many of the states.
+
+Our final hierarchical proportional odds model is as follows:
+$$
+log \left ( \frac{Pr[y_{i}\leq j|x^{_{i}}]}
+{Pr[y_{i}>j|x^{_{i}}]}  \right ) 
+ = \beta _{0j} + \gamma_i + X_i\beta, \ \  j=1,...,J-1
+$$
+All of the same variables from the previous proportional odds model are represented by the vector $X_i$ in this simplified equation. The only addition is that we now have a random intercept of $state$ represented by $\gamma_i$.
+
+The model summary shown below will be the basis for all interpretations and answers to our questions of interest.
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
 ##################################################
@@ -320,41 +297,52 @@ table(hospital$State, hospital$rate_new)
 # use model 4 as the only model to build hierarchy on
 
 # attempt to model with State as a categorical variable
-hier_model1 <- clm(rate_new ~ State + mort + safe + readmis + exp + effect + time + image + mort:exp, 
-                   data=hospital)
-summary(hier_model1)
+# hier_model1 <- clm(rate_new ~ State + mort + safe + readmis + exp + effect + time + image, data=hospital)
+# tab_model(hier_model1)
+
+hier_model2 <- clmm(rate_new ~ ho + mort + safe + readmis + exp + effect + time + image + (1|State), data=hospital)
+
+# print(xtable(summary(hier_model2)), comment=FALSE)
+# tab_model(hier_model2)
+# stargazer(hier_model2)
+```
 
 
-hier_model2 <- clmm(rate_new ~ mort + safe + readmis + exp + effect + time + image + mort:exp + (1|State), 
-                    data=hospital)
-summary(hier_model2)
+First, it is important to note that for our response of 1|2 and 2|3 the coefficients are not actually zero, but are extremely small.
 
+Interpretations!
+
+If we look at the random effects of this model, we can evaluate which states have hospitals with star ratings necessarily worse or better than the other states' hospitals.  The three states with the best hospitals are Ohio, Minnesota and Texas.  The three states with the worst hospitals are Florida, New York, and the U.S. territories we combined into "Others." Figure 1 in the appendix shows a full map of the United States designating which states are in the top half in the country verses the bottom half.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
 # see which states are better/worse off
 effects <- ranef(hier_model2,condVar = T)$State
-effects
-
 # sort from largest to smallest
-sort(effects$`(Intercept)`)
+# sort(effects$`(Intercept)`)
 
 # best
-  # OH      0.3145325526
-  # MN      0.2902950396
-  # TX      0.2424533299
+  # TX      0.276015939
+  # OH      0.261337967
+  # MN      0.249608508
 
 # worst
-  # Others -0.3241816480
-  # FL     -0.2971317669
-  # AR     -0.2243089919
-
-
-##################################################
-################# Assessment #####################
-##################################################
-
-## Accuracy
-# pred_classes <- predict(hier_model2)
-# Conf_mat <- confusionMatrix(as.factor(pred_classes),as.factor(sesame$viewcat))
-# Conf_mat$table
-# Conf_mat$overall["Accuracy"];
+  # Others -0.269373101
+  # FL     -0.257923148
+  # NY     -0.233823510
 ```
+
+Finally, regarding model assessment, we are not able to create binned plots of residuals since all of our variables are factor variables.  Additionally, we cannot look at a binned residual plot of the overall expected values.  The cumulative link mixed model (clmm) that was used to create this hierarchical proportional odds model creates cumulative predicted probabilities from the fitted values rather than exact predicted probabilities. 
+
+## Conclusions:
+
+As a recap, we were able to answer all of our questions of interest using the hierarchical proportional odds model.  The answers are as follows:
+
+  - Which quality measures have the strongest impact on hospital rating?
+      - 
+  -	How does the hospital rating differ for the different types of hospital ownership (e.g., Government, Non-profit, For-profit, etc.)?
+      - Government - Federal owned hospitals receive far lower ratings than Physician owned hospitals.
+  -	Does the hospital rating differ by state? Which states differ the most from other states?
+      - Yes.  The three states with the best hospitals are Ohio, Minnesota and Texas.  The three states with the worst hospitals are Florida, New York, and the U.S. territories we combined into "Others".
+
+The limitations to this report came down to the data available, and the limited number of observations in certain categories.  If there were more observations, we would have been able to explore interactions, and we would not have had to switch from a 5 level response to a 3 level response.  Along those same lines, we might have been able to explore random slopes and determine if there is any variation within states. The future potential of this project would be to add in more years of data to gain more observations.
 
