@@ -307,7 +307,7 @@ hospital$owner <- relevel(as.factor(hospital$owner), ref = "Government - Federal
 hier_model2 <- clmm(rate_new ~ owner + mortality + safety + readmis + patient_exp + effective + timely + imaging + (1|State), data=hospital)
 
 # print(xtable(summary(hier_model2)), comment=FALSE)
-# tab_model(hier_model2)
+tab_model(hier_model2)
 # stargazer(hier_model2)
 ```
 
