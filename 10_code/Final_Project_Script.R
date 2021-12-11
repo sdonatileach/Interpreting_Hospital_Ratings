@@ -63,12 +63,6 @@ hospital$image <- factor(hospital$Efficient.use.of.medical.imaging.national.comp
 # removed_var <- c("Hospital.Type","Hospital.Ownership","Emergency.Services","Meets.criteria.for.meaningful.use.of.EHRs","Mortality.national.comparison","Mortality.national.comparison.footnote","Safety.of.care.national.comparison","Safety.of.care.national.comparison.footnote","Readmission.national.comparison","Readmission.national.comparison.footnote","Patient.experience.national.comparison","Patient.experience.national.comparison.footnote","Effectiveness.of.care.national.comparison","Effectiveness.of.care.national.comparison.footnote","Timeliness.of.care.national.comparison","Timeliness.of.care.national.comparison.footnote","Efficient.use.of.medical.imaging.national.comparison","Efficient.use.of.medical.imaging.national.comparison.footnote")
 # hospital <- hospital[,!(removed_var(hospital) %in% drop)]
 
-# combine U.S. territories that have few obs
-territories <- c("AS","GU","MP","PR","VI")
-hospital$State[is.element(hospital$State,territories)] <- "Others"
-
-# factor the states now
-hospital$State <- factor(hospital$State)
 
 # remove hospitals that have a rating of "Not Available"
 removed_na <- which(hospital$rate != "Not Available")
@@ -117,31 +111,31 @@ table(hospital$ho, hospital$rate)
 prop.table(table(hospital$rate, hospital$ho), 2)
 
 # mortality IMPORTANT
-table(hospital$mort, hospital$rate)
+# table(hospital$mort, hospital$rate)
 prop.table(table(hospital$rate, hospital$mort), 1)
 
 # safety semi important
-table(hospital$safe, hospital$rate)
+# table(hospital$safe, hospital$rate)
 prop.table(table(hospital$rate, hospital$safe), 2)
 
 # readmission
 table(hospital$readmis, hospital$rate)
-prop.table(table(hospital$rate, hospital$readmis), 2)
+# prop.table(table(hospital$rate, hospital$readmis), 2)
 
 # patient experience IMPORTANT
-table(hospital$exp, hospital$rate)
-prop.table(table(hospital$rate, hospital$exp), 2)
+# table(hospital$exp, hospital$rate)
+# prop.table(table(hospital$rate, hospital$exp), 2)
 
 # effectiveness of care
-table(hospital$effect, hospital$rate)
+# table(hospital$effect, hospital$rate)
 prop.table(table(hospital$rate, hospital$effect), 2)
 
 # timeliness of care
-table(hospital$time, hospital$rate)
+# table(hospital$time, hospital$rate)
 prop.table(table(hospital$rate, hospital$time), 2)
 
 # Efficient use of medical imaging
-table(hospital$image, hospital$rate)
+# table(hospital$image, hospital$rate)
 prop.table(table(hospital$rate, hospital$image), 2)
 
 ############### interactions #####################
@@ -178,6 +172,29 @@ prop.table(table(hospital$rate, hospital$mort, hospital$ho), 2)
 ##################################################
 ################# Modeling #######################
 ##################################################
+# test the quality measures one at a time
+model_1 <- polr(rate ~ mort + exp, data=hospital)
+
+model_2 <- polr(rate ~ mort + exp + readmis, data=hospital)
+
+anova(model_1, model_2, test = "Chisq")
+
+model_3 <- polr(rate ~ mort + exp + readmis + safe, data=hospital)
+
+anova(model_2, model_3, test = "Chisq")
+
+model_4 <- polr(rate ~ mort + exp + readmis + safe + effect, data=hospital)
+
+anova(model_3, model_4, test = "Chisq")
+
+model_5 <- polr(rate ~ mort + exp + readmis + safe + effect + time, data=hospital)
+
+anova(model_4, model_5, test = "Chisq")
+
+model_6 <- polr(rate ~ mort + exp + readmis + safe + effect + time + image, data=hospital)
+
+anova(model_5, model_6, test = "Chisq")
+
 
 # model 1: everything but ho
 model1 <- polr(rate ~ mort + safe + readmis + exp + effect + time + image, data=hospital)
@@ -192,35 +209,6 @@ anova(model1, model2, test = "Chisq")
 
 # model 3: add mort:exp
 model3 <- polr(rate ~ ho + mort + safe + readmis + exp + effect + time + image + mort:exp, data=hospital)
-summary(model3)
-# look at coefficients
-coef(model3)
-# look at confidence intervals. If it crosses over zero it is significant
-confint(model3)
-# significant variables:
-    # hoPhysician                                                       0.11339461  3.295897666
-    # mortBelow the national average                                   -5.96288721 -4.553830325
-    # mortNot Available                                                -1.74196744 -0.270120482
-    # mortSame as the national average                                 -2.29219382 -1.292968592
-    # safeBelow the national average                                   -4.65627865 -4.040976205
-    # safeNot Available                                                -1.94331682 -1.306906516
-    # safeSame as the national average                                 -2.25949063 -1.787393076
-    # readmisBelow the national average                                -5.00942186 -4.397656659
-    # readmisNot Available                                             -2.22622978 -0.542515703
-    # readmisSame as the national average                              -2.54144391 -2.056884406
-    # expBelow the national average                                    -4.52480865 -3.285682650
-    # expSame as the national average                                  -2.01960969 -0.793371234
-    # effectBelow the national average                                 -1.64908259 -0.595153900
-    # timeBelow the national average                                   -1.34815895 -0.848615846
-    # timeSame as the national average                                 -0.49936769 -0.104875310
-    # imageBelow the national average                                  -1.32150828 -0.623486225
-    # imageNot Available                                               -0.81850393 -0.128411299
-    # mortNot Available:expBelow the national average                  -3.56589058 -1.307708871
-    # mortNot Available:expSame as the national average                -2.49980570 -0.342278337
-    # mortSame as the national average:expSame as the national average -1.71650665 -0.413117877
-# exponentiate to get off the log odds scale
-exp(coef(model3))
-exp(confint(model3))
 # determine the best model using anova
 anova(model2, model3, test = "Chisq")
 # p-value is small -- mort:exp is a useful predictor
@@ -233,26 +221,24 @@ anova(model3, model4, test = "Chisq")
 # p-value is small -- safe:exp is a useful predictor
 
 # model 5: add readmis:exp
-model5 <- polr(rate ~ ho + mort + safe + readmis + exp + effect + time + image + mort:exp + safe:exp + readmis:exp, data=hospital)
+model4 <- polr(rate ~ ho + mort + safe + readmis + exp + effect + time + image + mort:exp + readmis:exp, data=hospital)
 # determine the best model using anova
-anova(model4, model5, test = "Chisq")
+anova(model3, model4, test = "Chisq")
 # p-value is NOT small -- readmis:exp is NOT a useful predictor
 
 
-# move forward with interpretation of model 4
-summary(model4)
+
+# move forward with interpretation of model 3
+summary(model3)
+tab_model(model3)
 # look at coefficients
 coef(model4)
 # look at confidence intervals. If it crosses over zero it is significant
-confint(model4)
+confint(model3)
 # significant variables:
-# image Same as the national average 
-# time Not Available
-# effect Not Available
-# effect Same as the national average
-# exponentiate to get off the log odds scale
-exp(coef(model4))
-exp(confint(model4))
+  
+exp(coef(model3))
+exp(confint(model3))
 
 # don't need to check for multicolinearity because they are all factor variables
 
@@ -262,6 +248,13 @@ exp(confint(model4))
 
 # couldn't include state before because the levels have too few data
 # can collapse the ratings to 1,2,3
+
+# combine U.S. territories that have few obs
+territories <- c("AS","GU","MP","PR","VI")
+hospital$State[is.element(hospital$State,territories)] <- "Others"
+
+# factor the states now
+hospital$State <- factor(hospital$State)
 
 hospital$rate_new <- "1"
 hospital$rate_new[hospital$rate == 2]<- "1"
@@ -275,33 +268,76 @@ hospital$rate_new <- factor(hospital$rate_new)
 # order the new ratings
 hospital$rate_new <- ordered(hospital$rate_new,levels=c("1","2","3"))
 
-# look at distribution of obs now
+#############################################
+################# EDA #######################
+#############################################
+
+########### response variable ###############
 table(hospital$rate_new)
 
-# look at distribution by state
+########### varying intercept ###############
+
 table(hospital$State, hospital$rate_new)
 
-# attempt to model with State as a categorical variable
-hier_model1 <- polr(rate_new ~ State + mort + safe + readmis + exp + effect + time + image, 
-              data=hospital)
+##################################################
+################# Modeling #######################
+##################################################
 
+# use model 4 as the only model to build hierarchy on
+
+# attempt to model with State as a categorical variable
+hier_model1 <- clm(rate_new ~ State + mort + safe + readmis + exp + effect + time + image + mort:exp, 
+                   data=hospital)
 summary(hier_model1)
 
 
-hier_model2 <- clm(rate_new ~ State + mort + safe + readmis + exp + effect + time + image, 
-               data=hospital)
-
+hier_model2 <- clmm(rate_new ~ mort + safe + readmis + exp + effect + time + image + mort:exp + (1|State), 
+                    data=hospital)
 summary(hier_model2)
 
+## change the reference level of hospital ownership
+hospital$ho <- relevel(as.factor(hospital$ho), ref = "Physician")
 
-hier_model3 <- clmm(rate_new ~ mort + safe + readmis + exp + effect + time + image + (1|State), 
-              data=hospital)
-
+hier_model3 <- clmm(rate_new ~ ho + mort + safe + readmis + exp + effect + time + image + mort:exp + (1|State),
+                    data=hospital)
 summary(hier_model3)
+exp(coef(hier_model3))
+
+# see which states are better/worse off
 effects <- ranef(hier_model3,condVar = T)$State
+effects
 
-effects[order(`(Intercept)`), ]
+# sort from largest to smallest
+sort(effects$`(Intercept)`)
 
-effects[order(effects$`(Intercept)`),]
+# best
+  # TX      0.276015939
+  # OH      0.261337967
+  # MN      0.249608508
 
-sort(effects)
+# worst
+  # Others -0.269373101
+  # FL     -0.257923148
+  # NY     -0.233823510
+
+
+
+pred_prob <- hier_model3$fitted.values
+model3_resid <- as.numeric(hospital$rate_new) - pred_prob
+binnedplot(pred_prob,model3_resid)
+
+
+
+
+##################################################
+################# Assessment #####################
+##################################################
+
+## Accuracy
+# pred_classes <- predict(hier_model2)
+# Conf_mat <- confusionMatrix(as.factor(pred_classes),as.factor(sesame$viewcat))
+# Conf_mat$table
+# Conf_mat$overall["Accuracy"];
+
+
+
